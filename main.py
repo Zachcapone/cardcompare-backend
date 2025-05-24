@@ -61,6 +61,8 @@ def spend_summary():
         start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
         end_date = datetime.now().strftime("%Y-%m-%d")
 
+        print(f"🔍 Fetching transactions from {start_date} to {end_date}")
+
         request_data = TransactionsGetRequest(
             access_token=access_token,
             start_date=start_date,
@@ -68,6 +70,9 @@ def spend_summary():
             options=TransactionsGetRequestOptions(count=250)
         )
         response = client.transactions_get(request_data)
+
+        print("✅ Transactions response received")
+
         transactions = response.to_dict()["transactions"]
 
         category_totals = {
@@ -82,6 +87,8 @@ def spend_summary():
             amount = txn["amount"]
             name = (category[0] if category else "").lower()
 
+            print(f"🧾 Transaction: {name} - ${amount}")
+
             if "restaurant" in name or "dining" in name:
                 category_totals["Dining"] += amount
             elif "grocery" in name:
@@ -91,11 +98,14 @@ def spend_summary():
             elif "hotel" in name:
                 category_totals["Hotels"] += amount
 
+        print("✅ Categorized totals:", category_totals)
+
         return jsonify(category_totals)
 
     except Exception as e:
         print(f"🔥 spend_summary error: {str(e)}")
         return jsonify({"error": "Internal error", "details": str(e)}), 500
+
 
 # Required by Render to detect a live service
 if __name__ == "__main__":
