@@ -27,6 +27,9 @@ configuration = plaid.Configuration(
 )
 client = plaid_api.PlaidApi(plaid.ApiClient(configuration))
 
+# store access tokens in-memory for demo
+user_access_tokens = {}
+
 @app.route("/create_link_token", methods=["POST"])
 def create_link_token():
     request_data = LinkTokenCreateRequest(
@@ -42,16 +45,23 @@ def create_link_token():
 @app.route("/exchange_token", methods=["POST"])
 def exchange_token():
     data = request.get_json()
-    exchange_request = ItemPublicTokenExchangeRequest(public_token=data["public_token"])
+    public_token = data["public_token"]
+    exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
     exchange_response = client.item_public_token_exchange(exchange_request)
-    return jsonify(exchange_response.to_dict())
+    access_token = exchange_response["access_token"]
+    # store it for the demo (single-user)
+    user_access_tokens["user-id"] = access_token
+    return jsonify({"access_token_stored": True})
 
-@app.route("/transactions", methods=["POST"])
-def get_transactions():
-    data = request.get_json()
-    access_token = data["access_token"]
+@app.route("/spend_summary", methods=["GET"])
+def spend_summary():
+    access_token = user_access_tokens.get("user-id")
+    if not access_token:
+        return jsonify({"error": "No access token available"}), 400
+
     start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
     end_date = datetime.now().strftime("%Y-%m-%d")
+
     request_data = TransactionsGetRequest(
         access_token=access_token,
         start_date=start_date,
@@ -59,10 +69,27 @@ def get_transactions():
         options=TransactionsGetRequestOptions(count=250)
     )
     response = client.transactions_get(request_data)
-    return jsonify(response.to_dict())
+    transactions = response["transactions"]
 
-if __name__ == "__main__":
-    import os
-port = int(os.environ.get("PORT", 5000))
-app.run(host="0.0.0.0", port=port)
+    category_totals = {
+        "Dining": 0,
+        "Groceries": 0,
+        "Flights": 0,
+        "Hotels": 0
+    }
 
+    for txn in transactions:
+        category = txn.get("category", [])
+        amount = txn["amount"]
+        name = (category[0] if category else "").lower()
+
+        if "restaurant" in name or "dining" in name:
+            category_totals["Dining"] += amount
+        elif "grocery" in name:
+            category_totals["Groceries"] += amount
+        elif "travel" in name or "airlines" in name:
+            category_totals["Flights"] += amount
+        elif "hotel" in name:
+            category_totals["Hotels"] += amount
+
+    return jsonify(category_totals)
