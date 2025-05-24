@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
@@ -27,7 +26,7 @@ configuration = plaid.Configuration(
 )
 client = plaid_api.PlaidApi(plaid.ApiClient(configuration))
 
-# store access tokens in-memory for demo
+# Store access tokens in memory for this demo
 user_access_tokens = {}
 
 @app.route("/create_link_token", methods=["POST"])
@@ -48,8 +47,7 @@ def exchange_token():
     public_token = data["public_token"]
     exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
     exchange_response = client.item_public_token_exchange(exchange_request)
-    access_token = exchange_response["access_token"]
-    # store it for the demo (single-user)
+    access_token = exchange_response.to_dict()["access_token"]
     user_access_tokens["user-id"] = access_token
     return jsonify({"access_token_stored": True})
 
@@ -69,7 +67,7 @@ def spend_summary():
         options=TransactionsGetRequestOptions(count=250)
     )
     response = client.transactions_get(request_data)
-    transactions = response["transactions"]
+    transactions = response.to_dict()["transactions"]  # ✅ fixed line
 
     category_totals = {
         "Dining": 0,
@@ -94,6 +92,7 @@ def spend_summary():
 
     return jsonify(category_totals)
 
+# ✅ Required for Render
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
